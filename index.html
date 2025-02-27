@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>鳥取砂丘 2006年・2021年 連動3Dビューワー</title>
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: row;
+      height: 100%;
+      width: 100%;
+    }
+    
+    .viewer-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #ccc;
+    }
+    
+    .viewer-container:last-child {
+      border-right: none;
+    }
+    
+    .title-bar {
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 8px;
+      text-align: center;
+    }
+    
+    .viewer {
+      flex: 1;
+      width: 100%;
+      border: none;
+    }
+    
+    .control-panel {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      z-index: 100;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    button {
+      padding: 5px 10px;
+      border: none;
+      background-color: #4CAF50;
+      color: white;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    #sync-toggle {
+      background-color: #f44336;
+    }
+    
+    #sync-toggle.active {
+      background-color: #4CAF50;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="viewer-container">
+      <div class="title-bar">鳥取砂丘 (2006年)</div>
+      <iframe id="viewer1" class="viewer" src="ortho2006.html"></iframe>
+    </div>
+    <div class="viewer-container">
+      <div class="title-bar">鳥取砂丘 (2021年)</div>
+      <iframe id="viewer2" class="viewer" src="ortho2021.html"></iframe>
+    </div>
+  </div>
+  
+  <div class="control-panel">
+    <button id="sync-toggle" class="active">同期: オン</button>
+  </div>
+
+  <script>
+    // 各ビューワーのiframeと同期状態の変数
+    const viewer1 = document.getElementById('viewer1');
+    const viewer2 = document.getElementById('viewer2');
+    const syncToggle = document.getElementById('sync-toggle');
+    let isSynced = true;
+    
+    // iframeが読み込まれるのを待つ
+    function waitForViewersToLoad() {
+      return new Promise(resolve => {
+        let viewer1Loaded = false;
+        let viewer2Loaded = false;
+        
+        function checkLoaded() {
+          if (viewer1Loaded && viewer2Loaded) {
+            resolve();
+          }
+        }
+        
+        viewer1.addEventListener('load', () => {
+          viewer1Loaded = true;
+          checkLoaded();
+        });
+        
+        viewer2.addEventListener('load', () => {
+          viewer2Loaded = true;
+          checkLoaded();
+        });
+        
+        if (viewer1.contentDocument && viewer1.contentDocument.readyState === 'complete') {
+          viewer1Loaded = true;
+        }
+        if (viewer2.contentDocument && viewer2.contentDocument.readyState === 'complete') {
+          viewer2Loaded = true;
+        }
+        
+        checkLoaded();
+      });
+    }
+    
+    // ビューワー間の同期を設定
+    async function setupViewerSync() {
+      await waitForViewersToLoad();
+      
+      try {
+        const app1 = viewer1.contentWindow.Q3D.application;
+        const app2 = viewer2.contentWindow.Q3D.application;
+        
+        // ビューワー1のコントロールイベントを監視し、ビューワー2に反映
+        const controls1 = app1.controls;
+        
+        function onViewer1ControlsChanged() {
+          if (!isSynced) return;
+          
+          const camera1 = app1.camera;
+          const camera2 = app2.camera;
+          
+          camera2.position.copy(camera1.position);
+          camera2.rotation.copy(camera1.rotation);
+          
+          app2.controls.target.copy(controls1.target);
+          app2.render();
+        }
+        
+        controls1.addEventListener('change', onViewer1ControlsChanged);
+        
+        // ビューワー2のコントロールイベントを監視し、ビューワー1に反映
+        const controls2 = app2.controls;
+        
+        function onViewer2ControlsChanged() {
+          if (!isSynced) return;
+          
+          const camera1 = app1.camera;
+          const camera2 = app2.camera;
+          
+          camera1.position.copy(camera2.position);
+          camera1.rotation.copy(camera2.rotation);
+          
+          app1.controls.target.copy(controls2.target);
+          app1.render();
+        }
+        
+        controls2.addEventListener('change', onViewer2ControlsChanged);
+        
+        // 同期切替ボタンのイベント設定
+        syncToggle.addEventListener('click', () => {
+          isSynced = !isSynced;
+          syncToggle.textContent = isSynced ? '同期: オン' : '同期: オフ';
+          syncToggle.classList.toggle('active', isSynced);
+          
+          if (isSynced) {
+            onViewer1ControlsChanged();
+          }
+        });
+
+      } catch (error) {
+        console.error('ビューワーの同期設定中にエラーが発生しました:', error);
+      }
+    }
+    
+    window.addEventListener('load', setupViewerSync);
+  </script>
+</body>
+</html>
